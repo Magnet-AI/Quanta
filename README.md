@@ -9,11 +9,8 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Downloads](https://img.shields.io/pypi/dm/quanta)](https://pypi.org/project/quanta/)
 [![Stars](https://img.shields.io/github/stars/Magnet-AI/Quanta)](https://github.com/Magnet-AI/Quanta)
 
-[![Documentation](https://img.shields.io/badge/Documentation-Read%20the%20Docs-blue)](https://quanta.readthedocs.io)
-[![Demo](https://img.shields.io/badge/Demo-Try%20Online-green)](https://github.com/Magnet-AI/Quanta#-quick-start)
 [![Issues](https://img.shields.io/badge/Issues-GitHub%20Issues-red)](https://github.com/Magnet-AI/Quanta/issues)
 [![Discussions](https://img.shields.io/badge/Discussions-GitHub%20Discussions-purple)](https://github.com/Magnet-AI/Quanta/discussions)
 
