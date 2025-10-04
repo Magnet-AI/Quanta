@@ -257,6 +257,13 @@ We're currently fine-tuning our base models to improve accuracy. The engine is i
   <p><em>Consistent layout analysis across multiple pages of technical documents</em></p>
 </div>
 
+## 👥 Contributors
+
+**Developers & Maintainers:**
+- [@soovittt](https://github.com/soovittt) - Project Lead & Core Developer
+- [@Manushpm8](https://github.com/Manushpm8) - Core Developer
+- [@Magnet-AI](https://github.com/Magnet-AI) - Organization
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
