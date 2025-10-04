@@ -9,10 +9,10 @@ description = "Advanced PDF layout analysis engine for extracting figures, table
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "PDF Layout Analysis Team", email = "team@pdf-layout-engine.org"}
+    {name = "Sovit Nayak", email = "sovitnayak1258@gmail.com"}
 ]
 maintainers = [
-    {name = "PDF Layout Analysis Team", email = "team@pdf-layout-engine.org"}
+    {name = "Sovit Nayak", email = "sovitnayak1258@gmail.com"}
 ]
 keywords = [
     "pdf",

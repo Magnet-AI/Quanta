@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="quanta.png" alt="Quanta Logo" width="120" height="120"/>
+<img src="assets/quanta.png" alt="Quanta Logo" width="120" height="120"/>
 
 # Quanta
 
@@ -282,7 +282,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 📧 Email: support@pdf-layout-engine.org
+- 📧 Email: sovitnayak1258@gmail.com
 - 🐛 Issues: [GitHub Issues](https://github.com/Magnet-AI/Quanta/issues)
 - 💬 Discussions: [GitHub Discussions](https://github.com/Magnet-AI/Quanta/discussions)
 
