@@ -206,11 +206,18 @@ This generates overlay images showing:
 
 ## 📊 Performance
 
-### Benchmarks
+### Current Benchmarks
 - **Processing Speed**: ~2-5 seconds per page
-- **Accuracy**: 95%+ for figures, 90%+ for tables
+- **Current Accuracy**: ~80% for figures and tables
 - **Memory Usage**: ~200MB for typical documents
 - **Supported Formats**: PDF 1.4 - PDF 2.0
+
+### 🚧 **Active Development**
+We're currently fine-tuning our base models to improve accuracy. The engine is in active development with regular updates to enhance detection performance. We're working towards achieving 90%+ accuracy through:
+- Model fine-tuning on engineering document datasets
+- Improved preprocessing pipelines
+- Enhanced feature extraction algorithms
+- Community feedback integration
 
 ### Optimization Tips
 - Use high-resolution rendering for better accuracy
