@@ -260,7 +260,7 @@ We're currently fine-tuning our base models to improve accuracy. The engine is i
 ## 👥 Contributors
 
 **Developers & Maintainers:**
-- [@soovittt](https://github.com/soovittt) - Project Lead & Core Developer
+- [@soovittt](https://github.com/soovittt) - Core Developer
 - [@Manushpm8](https://github.com/Manushpm8) - Core Developer
 - [@Magnet-AI](https://github.com/Magnet-AI) - Organization
 
