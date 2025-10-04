@@ -1,8 +1,20 @@
 """
-PDF Extraction Pipeline
+PDF Layout Analysis Engine
 
-A comprehensive PDF extraction system that analyzes document structure,
-extracts text, figures, tables, and captions, and outputs structured data.
+A comprehensive system for extracting structured content from PDF documents using
+advanced computer vision and machine learning techniques.
+
+This package provides:
+- Multi-column layout detection
+- Text block extraction and grouping  
+- Figure and table recognition
+- Caption linking and reading order determination
+- Robust error handling for various PDF formats
+
+Example:
+    >>> from pdf_layout_engine import process_pdf
+    >>> result = process_pdf("document.pdf", "output/")
+    >>> print(f"Found {len(result['figures'])} figures and {len(result['tables'])} tables")
 
 Modules:
 - pdf_io: PDF loading, rendering, coordinate conversion
@@ -17,7 +29,9 @@ Modules:
 """
 
 __version__ = "1.0.0"
-__author__ = "PDF Extract Pipeline"
+__author__ = "PDF Layout Analysis Team"
+__email__ = "team@pdf-layout-engine.org"
+__license__ = "MIT"
 
 # Import main functions for easy access
 from .runner import process_pdf, process_page, run_single_page

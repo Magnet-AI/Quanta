@@ -282,14 +282,15 @@ def detect_figures_adaptive(drawing_boxes: List[Dict], page_analysis: Dict[str, 
         area = width * height
         aspect_ratio = width / height if height > 0 else 0
         
-        # Skip table-like elements (adaptive threshold)
-        table_threshold = 3 if page_analysis['content_type'] in ['large_diagrams', 'medium_diagrams'] else 2
-        if aspect_ratio > table_threshold and height < 100:
+        # Skip table-like elements (more lenient threshold)
+        table_threshold = 5 if page_analysis['content_type'] in ['large_diagrams', 'medium_diagrams'] else 4
+        if aspect_ratio > table_threshold and height < 50:  # More lenient height threshold
             logging.info(f"Skipping table element: {bbox} (aspect_ratio: {aspect_ratio:.1f})")
             continue
         
-        # Skip very small elements (adaptive threshold)
-        if area < page_analysis['min_figure_area']:
+        # Skip very small elements (more lenient threshold)
+        min_area = page_analysis['min_figure_area'] * 0.5  # Reduce minimum area by 50%
+        if area < min_area:
             logging.info(f"Skipping small element: {bbox} (area: {area})")
             continue
         

@@ -76,8 +76,22 @@ def load_pdf_page_data(pdf_path: str, page_num: int) -> Dict[str, Any]:
     Returns:
         Dictionary containing all page data
     """
-    doc = fitz.open(pdf_path)
-    page = doc[page_num]
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as e:
+        logging.error(f"Failed to open PDF {pdf_path}: {e}")
+        raise
+    
+    try:
+        page = doc[page_num]
+    except IndexError:
+        logging.error(f"Page {page_num} not found in PDF {pdf_path}")
+        doc.close()
+        raise
+    except Exception as e:
+        logging.error(f"Error accessing page {page_num} in PDF {pdf_path}: {e}")
+        doc.close()
+        raise
     
     # Get page dimensions
     rect = page.rect
@@ -86,13 +100,31 @@ def load_pdf_page_data(pdf_path: str, page_num: int) -> Dict[str, Any]:
     width_px = int(points_to_pixels(width_pt))
     height_px = int(points_to_pixels(height_pt))
     
-    # Extract text data
-    raw_dict = page.get_text("dict")
-    words = page.get_text("words")
+    # Extract text data with error handling
+    try:
+        raw_dict = page.get_text("dict")
+    except Exception as e:
+        logging.warning(f"Failed to extract text dict from page {page_num}: {e}")
+        raw_dict = {"blocks": []}
     
-    # Extract drawings and images
-    drawings = page.get_drawings()
-    images = page.get_images(full=True)
+    try:
+        words = page.get_text("words")
+    except Exception as e:
+        logging.warning(f"Failed to extract words from page {page_num}: {e}")
+        words = []
+    
+    # Extract drawings and images with error handling
+    try:
+        drawings = page.get_drawings()
+    except Exception as e:
+        logging.warning(f"Failed to extract drawings from page {page_num}: {e}")
+        drawings = []
+    
+    try:
+        images = page.get_images(full=True)
+    except Exception as e:
+        logging.warning(f"Failed to extract images from page {page_num}: {e}")
+        images = []
     
     # Render page image
     img_page = render_page(page)

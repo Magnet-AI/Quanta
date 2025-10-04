@@ -145,14 +145,14 @@ def detect_ruled_table_in_region(img: np.ndarray, col_offset: int,
     # cv2.imwrite(f"{debug_dir}/vertical_{col_offset}.png", img_v)
     # cv2.imwrite(f"{debug_dir}/combined_{col_offset}.png", img_lines)
     
-    # Detect lines using Hough transform - more conservative for 150 DPI
-    min_line_length = max(50, int(HOUGH_MINLINE * page_width * 0.5))  # More conservative
-    max_line_gap = max(10, int(HOUGH_MAXGAP * page_width * 0.2))  # More conservative
+    # Detect lines using Hough transform - improved parameters for better detection
+    min_line_length = max(30, int(HOUGH_MINLINE * page_width * 0.3))  # More sensitive
+    max_line_gap = max(5, int(HOUGH_MAXGAP * page_width * 0.1))  # More sensitive
     
     logging.info(f"Hough parameters: minLineLength={min_line_length}, maxLineGap={max_line_gap}")
     
     lines = cv2.HoughLinesP(
-        img_lines, 1, np.pi/180, threshold=50,  # Higher threshold for better quality
+        img_lines, 1, np.pi/180, threshold=30,  # Lower threshold for more lines
         minLineLength=min_line_length, maxLineGap=max_line_gap
     )
     
@@ -209,7 +209,8 @@ def detect_ruled_table_in_region(img: np.ndarray, col_offset: int,
     
     logging.info(f"After merging: {len(h_lines)} horizontal, {len(v_lines)} vertical lines")
     
-    if len(h_lines) < 2 or len(v_lines) < 2:
+    # More lenient requirements - allow single lines for simple tables
+    if len(h_lines) < 1 or len(v_lines) < 1:
         logging.info(f"Not enough lines after merging: h={len(h_lines)}, v={len(v_lines)}")
         return None
     
@@ -225,8 +226,8 @@ def detect_ruled_table_in_region(img: np.ndarray, col_offset: int,
     cells = extract_cells_from_grid(grid, img)
     logging.info(f"Extracted {len(cells)} cells")
     
-    if len(cells) < 4:  # Need at least 2x2 grid
-        logging.info(f"Not enough cells: {len(cells)} < 4")
+    if len(cells) < 1:  # Need at least 1 cell
+        logging.info(f"Not enough cells: {len(cells)} < 1")
         return None
     
     # Additional validation: check if cells form a reasonable table structure
@@ -439,7 +440,8 @@ def extract_grid_from_lines(h_lines: List[Tuple], v_lines: List[Tuple],
         if x - filtered_x[-1] >= min_gap:
             filtered_x.append(x)
     
-    if len(filtered_y) < 2 or len(filtered_x) < 2:
+    # More lenient requirements - allow single row/column tables
+    if len(filtered_y) < 1 or len(filtered_x) < 1:
         logging.info(f"Not enough grid lines after filtering: rows={len(filtered_y)}, cols={len(filtered_x)}")
         return None
     
@@ -470,22 +472,44 @@ def extract_cells_from_grid(grid: Dict, img: np.ndarray) -> List[Dict]:
     rows = grid['rows']
     cols = grid['cols']
     
-    for r in range(len(rows) - 1):
-        for c in range(len(cols) - 1):
-            x0, y0 = cols[c], rows[r]
-            x1, y1 = cols[c + 1], rows[r + 1]
-            
-            # Extract text from cell region
-            cell_img = img[y0:y1, x0:x1]
-            text = extract_text_from_cell(cell_img)
-            
-            cell = {
-                'r': r,
-                'c': c,
-                'text': text,
-                'bbox_px': [int(x0), int(y0), int(x1), int(y1)]
-            }
-            cells.append(cell)
+    # Add safety checks to prevent index errors
+    if not rows or not cols or len(rows) < 2 or len(cols) < 2:
+        logging.warning(f"Invalid grid structure: rows={len(rows)}, cols={len(cols)}")
+        return cells
+    
+    try:
+        for r in range(len(rows) - 1):
+            for c in range(len(cols) - 1):
+                x0, y0 = cols[c], rows[r]
+                x1, y1 = cols[c + 1], rows[r + 1]
+                
+                # Validate cell coordinates
+                if x0 >= x1 or y0 >= y1:
+                    logging.warning(f"Invalid cell coordinates: ({x0}, {y0}, {x1}, {y1})")
+                    continue
+                
+                # Ensure coordinates are within image bounds
+                h, w = img.shape[:2]
+                x0, y0 = max(0, int(x0)), max(0, int(y0))
+                x1, y1 = min(w, int(x1)), min(h, int(y1))
+                
+                if x0 >= x1 or y0 >= y1:
+                    continue
+                
+                # Extract text from cell region
+                cell_img = img[y0:y1, x0:x1]
+                text = extract_text_from_cell(cell_img)
+                
+                cell = {
+                    'r': r,
+                    'c': c,
+                    'text': text,
+                    'bbox_px': [int(x0), int(y0), int(x1), int(y1)]
+                }
+                cells.append(cell)
+    except (IndexError, ValueError) as e:
+        logging.error(f"Error extracting cells from grid: {e}")
+        return []
     
     return cells
 

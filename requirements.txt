@@ -9,6 +9,9 @@ numpy>=1.24.0
 # Machine learning and clustering
 scikit-learn>=1.3.0
 
+# YOLO model for advanced detection
+ultralytics>=8.0.0
+
 # Optional OCR (choose one)
 # PaddleOCR>=2.7.0
 # pytesseract>=0.3.10
