@@ -938,7 +938,9 @@ def is_tabular_row(row_blocks: List) -> bool:
     # Check for patterns that suggest table data
     texts = [block.text.strip() for block in row_blocks]
     
-    # More conservative approach to avoid misclassifying diagrams as tables
+    # FIRST: Check if this looks like a technical drawing (reject early)
+    if is_technical_drawing_text(texts):
+        return False
     
     # Pattern 1: Multiple segments with table-specific keywords
     table_keywords = [
@@ -993,20 +995,66 @@ def is_tabular_row(row_blocks: List) -> bool:
         keyword_count >= 1):
         return True
     
-    # Pattern 5: Reject if it looks like a diagram (has dimension-like text)
-    diagram_indicators = [
-        'mm', 'max', 'height', 'width', 'diameter', 'radius', 'typ', 'symm',
-        'exposed', 'pad', 'solder', 'paste', 'coverage', 'area', 'package'
+    return False
+
+def is_technical_drawing_text(texts: List[str]) -> bool:
+    """
+    Check if text blocks look like they're from a technical drawing
+    
+    Args:
+        texts: List of text strings
+        
+    Returns:
+        True if this looks like technical drawing text
+    """
+    import re
+    
+    # Technical drawing indicators
+    tech_keywords = [
+        'stencil', 'design', 'vqfn', 'quad', 'flatpack', 'lead', 'metal',
+        'laser', 'cutting', 'apertures', 'trapezoidal', 'rounded', 'corners',
+        'ipc-7525', 'texas', 'instruments', 'example', 'based', 'thick',
+        'printed', 'scale', 'continued', 'notes', 'symm', 'typ', 'max',
+        'height', 'width', 'diameter', 'radius', 'exposed', 'pad', 'solder',
+        'paste', 'coverage', 'area', 'package', 'mm', 'dimensions'
     ]
     
-    diagram_count = 0
-    for text in texts:
-        if any(indicator in text.lower() for indicator in diagram_indicators):
-            diagram_count += 1
+    # Dimension patterns (very specific to technical drawings)
+    dimension_patterns = [
+        r'\(\d+\.?\d*\)',  # (0.715), (1.23), etc.
+        r'\(\d+\.?\d*\s*[A-Za-z]+\)',  # (R0.05) TYP, etc.
+        r'\d+X\s*\(\d+\.?\d*\)',  # 32X (0.55), 4X (1.23), etc.
+        r'^\d+\.\d+$',  # Pure decimal numbers like "0.715"
+        r'^[A-Z]\d+[A-Z]*\d*$',  # Part numbers like "RSM0032B"
+    ]
     
-    # If it has too many diagram indicators, it's probably not a table
-    if diagram_count >= 2:
-        return False
+    tech_keyword_count = 0
+    dimension_count = 0
+    
+    for text in texts:
+        text_lower = text.lower()
+        
+        # Count technical keywords
+        if any(keyword in text_lower for keyword in tech_keywords):
+            tech_keyword_count += 1
+        
+        # Count dimension patterns
+        for pattern in dimension_patterns:
+            if re.search(pattern, text):
+                dimension_count += 1
+                break
+    
+    # If we have both technical keywords AND dimension patterns, it's likely a technical drawing
+    if tech_keyword_count >= 2 and dimension_count >= 2:
+        return True
+    
+    # If we have many dimension patterns (4+), it's definitely a technical drawing
+    if dimension_count >= 4:
+        return True
+    
+    # If we have technical keywords and short text blocks (typical of dimension labels)
+    if tech_keyword_count >= 1 and dimension_count >= 1 and all(len(text) < 15 for text in texts):
+        return True
     
     return False
 
