@@ -7,11 +7,16 @@ from sklearn.cluster import DBSCAN
 from typing import List, Dict, Any, Tuple, Optional
 import logging
 
-# Constants - Focus on larger figures, not tiny fragments
-DBSCAN_EPS = 30          # pixels @ 150 DPI (larger clusters for complete figures)
-DBSCAN_MIN_SAMPLES = 50  # higher threshold to avoid tiny fragments
-MIN_STROKE_LEN = 500     # pixels (focus on substantial drawings)
-NMS_IOU = 0.1            # more aggressive merging
+# Constants - Optimized for better figure detection
+DBSCAN_EPS = 25          # pixels @ 150 DPI (more sensitive clustering)
+DBSCAN_MIN_SAMPLES = 40  # lower threshold to catch more figures
+MIN_STROKE_LEN = 400     # pixels (slightly more sensitive)
+NMS_IOU = 0.4            # balanced merging to avoid over-expanding boundaries
+
+# Figure detection thresholds - tuned for better balance
+TEXT_RATIO_THRESHOLD = 0.25  # If >25% text, try to refine boundaries
+FIGURE_REJECTION_THRESHOLD = 0.5  # If >50% text, reject figure entirely
+MIN_FIGURE_AREA = 0.3  # Minimum 30% of original area after text filtering
 
 class Figure:
     """Represents a detected figure"""
@@ -34,7 +39,8 @@ class Figure:
         )
 
 def detect_figures(drawings: List[Dict], xobjects: List[Dict], 
-                  columns: List[Tuple[int, int]], page_size: Dict[str, Any]) -> List[Figure]:
+                  columns: List[Tuple[int, int]], page_size: Dict[str, Any], 
+                  text_blocks: List[Any] = None) -> List[Figure]:
     """
     Detect figures using vector clustering and image XObjects
     
@@ -73,7 +79,11 @@ def detect_figures(drawings: List[Dict], xobjects: List[Dict],
     for figure in merged_figures:
         snap_to_columns(figure, columns)
 
-    # D7. Final safety padding to avoid tight crops in exports/overlays
+    # D7. Filter out text-heavy regions from figure boundaries
+    if text_blocks:
+        merged_figures = filter_text_from_figures(merged_figures, text_blocks)
+
+    # D8. Final safety padding to avoid tight crops in exports/overlays
     page_w, page_h = page_size.get('px', (1275, 1650))
     # pad ~0.7% of page width, min 8px, max 18px at 150DPI
     final_pad = int(max(8, min(18, 0.007 * page_w)))
@@ -802,11 +812,33 @@ def merge_overlapping_figures(figures: List[Figure]) -> Figure:
     if len(figures) == 1:
         return figures[0]
     
-    # Calculate combined bounding box
+    # Calculate combined bounding box - but be more conservative
     x0 = min(f.bbox_px[0] for f in figures)
     y0 = min(f.bbox_px[1] for f in figures)
     x1 = max(f.bbox_px[2] for f in figures)
     y1 = max(f.bbox_px[3] for f in figures)
+    
+    # Apply conservative boundary constraints to avoid including too much text
+    # Limit expansion to reasonable bounds based on individual figure sizes
+    avg_width = sum(f.bbox_px[2] - f.bbox_px[0] for f in figures) / len(figures)
+    avg_height = sum(f.bbox_px[3] - f.bbox_px[1] for f in figures) / len(figures)
+    
+    # Don't let the merged figure be more than 3x the average size in any dimension
+    max_width = avg_width * 3
+    max_height = avg_height * 3
+    
+    current_width = x1 - x0
+    current_height = y1 - y0
+    
+    if current_width > max_width:
+        center_x = (x0 + x1) / 2
+        x0 = int(center_x - max_width / 2)
+        x1 = int(center_x + max_width / 2)
+    
+    if current_height > max_height:
+        center_y = (y0 + y1) / 2
+        y0 = int(center_y - max_height / 2)
+        y1 = int(center_y + max_height / 2)
     
     # Determine source type
     sources = [f.source for f in figures]
@@ -937,6 +969,85 @@ def refine_figures(figures: List[Figure], page_size: Dict[str, Any]) -> List[Fig
     # Cap count to avoid excessive boxes
     max_figs = 15
     return keep[:max_figs]
+
+def filter_text_from_figures(figures: List[Figure], text_blocks: List[Any]) -> List[Figure]:
+    """
+    Filter out text-heavy regions from figure boundaries to make them more precise
+    
+    Args:
+        figures: List of detected Figure objects
+        text_blocks: List of text blocks to avoid including in figures
+        
+    Returns:
+        List of figures with refined boundaries that exclude text content
+    """
+    if not figures or not text_blocks:
+        return figures
+    
+    filtered_figures = []
+    
+    for figure in figures:
+        fig_x0, fig_y0, fig_x1, fig_y1 = figure.bbox_px
+        fig_area = (fig_x1 - fig_x0) * (fig_y1 - fig_y0)
+        
+        # Find text blocks that overlap significantly with this figure
+        overlapping_text_area = 0
+        text_blocks_in_figure = []
+        
+        for text_block in text_blocks:
+            if hasattr(text_block, 'bbox_px'):
+                tb_x0, tb_y0, tb_x1, tb_y1 = text_block.bbox_px
+                
+                # Calculate overlap
+                overlap_x0 = max(fig_x0, tb_x0)
+                overlap_y0 = max(fig_y0, tb_y0)
+                overlap_x1 = min(fig_x1, tb_x1)
+                overlap_y1 = min(fig_y1, tb_y1)
+                
+                if overlap_x0 < overlap_x1 and overlap_y0 < overlap_y1:
+                    overlap_area = (overlap_x1 - overlap_x0) * (overlap_y1 - overlap_y0)
+                    overlapping_text_area += overlap_area
+                    text_blocks_in_figure.append(text_block)
+        
+        # If more than threshold of the figure area is text, try to shrink the boundary
+        text_ratio = overlapping_text_area / fig_area if fig_area > 0 else 0
+        
+        if text_ratio > TEXT_RATIO_THRESHOLD and text_blocks_in_figure:
+            # Try to create a tighter boundary that excludes the text blocks
+            # Find the core visual area by excluding text-heavy regions
+            core_x0, core_y0, core_x1, core_y1 = fig_x0, fig_y0, fig_x1, fig_y1
+            
+            # Shrink from each side to exclude text blocks
+            for text_block in text_blocks_in_figure:
+                tb_x0, tb_y0, tb_x1, tb_y1 = text_block.bbox_px
+                
+                # If text block is on the left edge, shrink from left
+                if tb_x0 <= fig_x0 + (fig_x1 - fig_x0) * 0.3:
+                    core_x0 = max(core_x0, tb_x1)
+                # If text block is on the right edge, shrink from right
+                elif tb_x1 >= fig_x1 - (fig_x1 - fig_x0) * 0.3:
+                    core_x1 = min(core_x1, tb_x0)
+                # If text block is on the top edge, shrink from top
+                elif tb_y0 <= fig_y0 + (fig_y1 - fig_y0) * 0.3:
+                    core_y0 = max(core_y0, tb_y1)
+                # If text block is on the bottom edge, shrink from bottom
+                elif tb_y1 >= fig_y1 - (fig_y1 - fig_y0) * 0.3:
+                    core_y1 = min(core_y1, tb_y0)
+            
+            # Only use the refined boundary if it's still reasonable
+            refined_area = (core_x1 - core_x0) * (core_y1 - core_y0)
+            if refined_area >= fig_area * MIN_FIGURE_AREA:
+                figure.bbox_px = [int(core_x0), int(core_y0), int(core_x1), int(core_y1)]
+                logging.info(f"Refined figure boundary to exclude text: {text_ratio:.2f} text ratio")
+        
+        # If still too much text, reject the figure entirely
+        if text_ratio > FIGURE_REJECTION_THRESHOLD:
+            logging.info(f"Rejecting figure with too much text: {text_ratio:.2f} text ratio")
+            continue
+        
+        filtered_figures.append(figure)
+    
+    return filtered_figures
 
 def snap_to_columns(figure: Figure, columns: List[Tuple[int, int]], 
                    tolerance: int = 10) -> None:

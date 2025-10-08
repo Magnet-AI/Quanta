@@ -8,10 +8,18 @@ import logging
 import csv
 import io
 
-# Constants
-HOUGH_MINLINE = 0.1  # Fraction of page width
-HOUGH_MAXGAP = 0.02  # Fraction of page width
-ROW_DY_FACTOR = 0.6  # For line baseline clustering
+# Constants - Optimized for better table detection
+HOUGH_MINLINE = 0.08  # Fraction of page width (more sensitive)
+HOUGH_MAXGAP = 0.015  # Fraction of page width (more sensitive)
+ROW_DY_FACTOR = 0.5  # For line baseline clustering (more strict)
+
+# Table detection thresholds - very lenient to catch real tables
+MIN_COLUMN_SPACING = 10  # Minimum spacing between columns (pixels) - very lenient
+MAX_COLUMN_SPACING = 400  # Maximum spacing between columns (pixels) - very lenient
+MIN_ROW_ALIGNMENT = 40  # Maximum vertical variance for row alignment (pixels) - very lenient
+MIN_BLOCKS_PER_ROW = 2  # Minimum blocks needed for a table row - very lenient
+MIN_STRUCTURED_PATTERNS = 1  # Minimum structured patterns needed - very lenient
+MIN_TABLE_KEYWORDS = 1  # Minimum table keywords needed - very lenient
 
 class Table:
     """Represents a detected table"""
@@ -38,36 +46,31 @@ class Table:
         return max(cell.get('c', 0) for cell in self.cells) + 1
 
 def extract_tables(img: np.ndarray, text_blocks: List, columns: List[Tuple[int, int]], 
-                  page_width: int) -> List[Table]:
+                  page_width: int, pdf_path: str = None, page_number: int = 1) -> List[Table]:
     """
-    Extract tables from page image using both ruled and text-based detection
+    Extract tables using hybrid approach (Mistral OCR + custom fallback).
     
     Args:
         img: Page image
         text_blocks: List of text blocks
         columns: List of column boundaries
         page_width: Width of page in pixels
+        pdf_path: Path to PDF file (for Mistral OCR)
+        page_number: Page number
         
     Returns:
         List of detected Table objects
     """
-    tables = []
+    from .hybrid_processor import extract_tables_hybrid
     
-    logging.info(f"Extracting tables with {len(text_blocks)} text blocks, {len(columns)} columns")
+    logging.info(f"Extracting tables with hybrid approach: {len(text_blocks)} text blocks, {len(columns)} columns")
     
-    # Try ruled table detection first (for tables with visible lines)
-    ruled_tables = detect_ruled_tables(img, columns, page_width)
-    logging.info(f"Ruled table detection found {len(ruled_tables)} tables")
-    tables.extend(ruled_tables)
-    
-    # Use text-based table detection as fallback
-    text_tables = detect_text_based_tables(text_blocks, columns, page_width)
-    logging.info(f"Text-based table detection found {len(text_tables)} tables")
-    tables.extend(text_tables)
+    # Use hybrid approach (Mistral OCR with custom fallback)
+    tables = extract_tables_hybrid(img, text_blocks, columns, page_width, pdf_path, page_number)
     
     # Filter out false positives
     filtered_tables = filter_table_candidates(tables)
-    logging.info(f"Final table count after filtering: {len(filtered_tables)}")
+    logging.info(f"Hybrid table detection found {len(filtered_tables)} tables")
     
     return filtered_tables
 
@@ -932,7 +935,7 @@ def is_tabular_row(row_blocks: List) -> bool:
     Returns:
         True if this looks like tabular data
     """
-    if len(row_blocks) < 2:  # Need at least 2 blocks for a table row
+    if len(row_blocks) < MIN_BLOCKS_PER_ROW:
         return False
     
     # Check for patterns that suggest table data
@@ -942,22 +945,58 @@ def is_tabular_row(row_blocks: List) -> bool:
     if is_technical_drawing_text(texts):
         return False
     
-    # Pattern 1: Multiple segments with table-specific keywords
-    table_keywords = [
-        'status', 'material', 'package', 'qty', 'rohs', 'lead', 'msl', 'temp',
-        'part', 'number', 'type', 'pins', 'carrier', 'finish', 'rating', 'reflow',
-        'active', 'production', 'vqfn', 'rsm', 'nipdau', 'level-1', 'unlimited',
-        'orderable', 'ball', 'peak', 'op', 'marking', 'addendum', 'information'
+    # REJECT: If any text block is too long (likely a paragraph, not table data)
+    if any(len(text) > 60 for text in texts):  # More strict threshold
+        return False
+    
+    # REJECT: If text contains sentence-like patterns (commas, periods, etc.) - but be more selective
+    sentence_indicators = ['.', '!', '?', ',', ';']  # Added back comma and semicolon
+    if any(any(indicator in text for indicator in sentence_indicators) for text in texts):
+        return False
+    
+    # REJECT: If text looks like descriptive content (only very obvious patterns)
+    descriptive_patterns = [
+        'simplified', 'schematic', 'figure', 'description of', 'this device',
+        'the following', 'as shown', 'refer to', 'see figure'
     ]
     
-    keyword_count = 0
     for text in texts:
-        if any(keyword in text.lower() for keyword in table_keywords):
-            keyword_count += 1
+        if any(pattern in text.lower() for pattern in descriptive_patterns):
+            return False
     
-    # Need at least 2 keywords for table-like content (more strict)
-    if keyword_count >= 2:
-        return True
+    # REJECT: If text looks like explanatory content (more specific patterns)
+    explanatory_indicators = [
+        'when designated', 'preproduction', 'prototypes', 'experimental',
+        'moisture sensitivity', 'solder reflow', 'temperatures', 'jedic',
+        'shipping label', 'printed circuit board', 'refer to', 'shown',
+        'in the event', 'multiple', 'standards', 'mount the part',
+        'the moisture sensitivity level ratings', 'peak solder reflow',
+        'printed circuit board', 'jedic standards'
+    ]
+    
+    for text in texts:
+        if any(indicator in text.lower() for indicator in explanatory_indicators):
+            return False
+    
+    # Pattern 1: Check if blocks are aligned in a proper grid pattern (MOST IMPORTANT)
+    if len(texts) >= MIN_BLOCKS_PER_ROW:
+        # Check if x-coordinates are reasonably spaced (suggesting columns)
+        x_coords = [block.bbox_px[0] for block in row_blocks]
+        x_coords.sort()
+        
+        # Check for reasonable spacing between columns
+        gaps = [x_coords[i+1] - x_coords[i] for i in range(len(x_coords)-1)]
+        if gaps and min(gaps) > MIN_COLUMN_SPACING:
+            # Additional check: ensure blocks are roughly aligned vertically
+            y_coords = [block.bbox_px[1] for block in row_blocks]
+            y_variance = max(y_coords) - min(y_coords)
+            if y_variance < MIN_ROW_ALIGNMENT:
+                # Additional check: ensure this doesn't look like a single paragraph
+                # If all text blocks are very close together, it's likely not a table
+                total_width = x_coords[-1] - x_coords[0]
+                if total_width < 200:  # If total width is too small, likely not a table
+                    return False
+                return True
     
     # Pattern 2: Contains structured codes AND multiple blocks
     structured_patterns = [
@@ -975,25 +1014,64 @@ def is_tabular_row(row_blocks: List) -> bool:
         if any(re.match(pattern, text) for pattern in structured_patterns):
             pattern_count += 1
     
-    # Need at least 2 structured patterns AND multiple blocks
-    if pattern_count >= 2 and len(texts) >= 3:
+    # Need structured patterns AND multiple blocks (more flexible)
+    if pattern_count >= MIN_STRUCTURED_PATTERNS and len(texts) >= 3:
         return True
     
-    # Pattern 3: Check if blocks are aligned in a proper grid pattern
-    if len(texts) >= 3:  # Need at least 3 blocks for a proper table row
-        # Check if x-coordinates are reasonably spaced (suggesting columns)
+    # Pattern 3: Table-specific keywords with proper alignment
+    table_keywords = [
+        'status', 'material', 'package', 'qty', 'rohs', 'lead', 'msl', 'temp',
+        'part', 'number', 'type', 'pins', 'carrier', 'finish', 'rating', 'reflow',
+        'active', 'production', 'vqfn', 'rsm', 'nipdau', 'level-1', 'unlimited',
+        'orderable', 'ball', 'peak', 'op', 'marking', 'addendum', 'information'
+    ]
+    
+    keyword_count = 0
+    for text in texts:
+        if any(keyword in text.lower() for keyword in table_keywords):
+            keyword_count += 1
+    
+    # Need keywords AND proper alignment for table-like content (more flexible)
+    if keyword_count >= MIN_TABLE_KEYWORDS:
+        # Check alignment again
+        x_coords = [block.bbox_px[0] for block in row_blocks]
+        x_coords.sort()
+        gaps = [x_coords[i+1] - x_coords[i] for i in range(len(x_coords)-1)]
+        if gaps and min(gaps) > MIN_COLUMN_SPACING:
+            return True
+    
+    # Pattern 4: Special case for data tables with consistent spacing
+    if len(texts) >= 3:
+        # Check if this looks like a data row with consistent column spacing
         x_coords = [block.bbox_px[0] for block in row_blocks]
         x_coords.sort()
         
-        # Check for reasonable spacing between columns
+        # Calculate spacing between columns
         gaps = [x_coords[i+1] - x_coords[i] for i in range(len(x_coords)-1)]
-        if gaps and min(gaps) > 20:  # At least 20px between columns
-            return True
+        if gaps:
+            # Check if spacing is relatively consistent (not too varied)
+            min_gap = min(gaps)
+            max_gap = max(gaps)
+            if min_gap > MIN_COLUMN_SPACING and max_gap < MAX_COLUMN_SPACING:
+                # Check if blocks are roughly aligned
+                y_coords = [block.bbox_px[1] for block in row_blocks]
+                y_variance = max(y_coords) - min(y_coords)
+                if y_variance < MIN_ROW_ALIGNMENT:
+                    return True
     
-    # Pattern 4: Very short text segments with table keywords
-    if (len(texts) >= 3 and all(len(text) < 30 for text in texts) and 
-        keyword_count >= 1):
-        return True
+    # Pattern 5: Very lenient table detection - focus on structure, not content
+    if len(texts) >= 2:
+        # Check basic alignment and spacing
+        x_coords = [block.bbox_px[0] for block in row_blocks]
+        x_coords.sort()
+        gaps = [x_coords[i+1] - x_coords[i] for i in range(len(x_coords)-1)]
+        
+        if gaps and min(gaps) > 5:  # Basic spacing check
+            # Check if blocks are roughly aligned vertically
+            y_coords = [block.bbox_px[1] for block in row_blocks]
+            y_variance = max(y_coords) - min(y_coords)
+            if y_variance < 50:  # Very lenient vertical alignment
+                return True
     
     return False
 

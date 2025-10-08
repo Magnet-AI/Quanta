@@ -14,7 +14,7 @@ from typing import List, Dict, Any
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 # Import the processing modules
-from src.runner import process_pdf, setup_logging
+from src.core.pipeline_processor import process_pdf, setup_logging
 import cv2
 import numpy as np
 
@@ -38,10 +38,15 @@ def get_pdf_files(test_pdf_dir: str) -> List[str]:
         logging.error(f"Test PDF directory not found: {test_pdf_dir}")
         return pdf_files
     
-    for file_path in test_pdf_path.glob("*.pdf"):
-        pdf_files.append(str(file_path))
+    # Only process tps51633.pdf for testing
+    target_file = test_pdf_path / "tps51633.pdf"
+    if target_file.exists():
+        pdf_files.append(str(target_file))
+        logging.info(f"Found target PDF: {target_file.name}")
+    else:
+        logging.error(f"Target PDF not found: {target_file}")
     
-    return sorted(pdf_files)
+    return pdf_files
 
 def create_output_folder(pdf_path: str, base_output_dir: str) -> str:
     """Create output folder for a specific PDF"""
@@ -51,8 +56,8 @@ def create_output_folder(pdf_path: str, base_output_dir: str) -> str:
     return output_dir
 
 def process_pdf_debug(pdf_path: str, output_dir: str) -> Dict[str, Any]:
-    """Process PDF in debug mode - generate layout overlays instead of extracting images"""
-    from src.runner import process_pdf
+    """Process PDF in debug mode - generate layout overlays with colored box annotations"""
+    from src.core.pipeline_processor import process_pdf
     
     # Process normally first
     result = process_pdf(pdf_path, output_dir)
@@ -65,29 +70,49 @@ def process_pdf_debug(pdf_path: str, output_dir: str) -> Dict[str, Any]:
         # Create overlay image
         overlay = img_page.copy()
         
-        # Draw columns
-        for col_x0, col_x1 in page_data.get('columns', []):
+        # Draw columns (Blue boxes)
+        for i, (col_x0, col_x1) in enumerate(page_data.get('columns', [])):
             cv2.rectangle(overlay, (col_x0, 0), (col_x1, overlay.shape[0]), (255, 0, 0), 3)
+            cv2.putText(overlay, f"Col{i+1}", (col_x0+5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
         
-        # Draw text blocks
-        for block in page_data.get('text_blocks', []):
-            bbox = block.get('bbox_px', [0, 0, 0, 0])
+        # Draw text blocks (Green boxes)
+        for i, block in enumerate(page_data.get('text_blocks', [])):
+            bbox = block.bbox_px if hasattr(block, 'bbox_px') else [0, 0, 0, 0]
             cv2.rectangle(overlay, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
+            cv2.putText(overlay, f"T{i+1}", (bbox[0], bbox[1]-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
         
-        # Draw figures
-        for figure in page_data.get('figures', []):
+        # Draw figures (Red boxes)
+        for i, figure in enumerate(page_data.get('figures', [])):
             bbox = figure.bbox_px
             cv2.rectangle(overlay, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 0, 255), 3)
-            cv2.putText(overlay, f"Fig", (bbox[0], bbox[1]-5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            cv2.putText(overlay, f"FIGURE {i+1}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            # Add confidence score if available
+            if hasattr(figure, 'confidence'):
+                cv2.putText(overlay, f"({figure.confidence:.2f})", (bbox[0], bbox[1]+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
         
-        # Draw tables
-        for table in page_data.get('tables', []):
+        # Draw tables (Yellow boxes)
+        for i, table in enumerate(page_data.get('tables', [])):
             bbox = table.bbox_px
-            cv2.rectangle(overlay, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (255, 255, 0), 3)
-            cv2.putText(overlay, f"Table", (bbox[0], bbox[1]-5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+            cv2.rectangle(overlay, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 255), 3)
+            cv2.putText(overlay, f"TABLE {i+1}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+            # Add confidence score if available
+            if hasattr(table, 'confidence'):
+                cv2.putText(overlay, f"({table.confidence:.2f})", (bbox[0], bbox[1]+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+        
+        # Add legend
+        legend_y = 30
+        cv2.putText(overlay, "LEGEND:", (10, legend_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        legend_y += 25
+        cv2.putText(overlay, "Blue = Columns", (10, legend_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+        legend_y += 20
+        cv2.putText(overlay, "Green = Text Blocks", (10, legend_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        legend_y += 20
+        cv2.putText(overlay, "Red = Figures", (10, legend_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        legend_y += 20
+        cv2.putText(overlay, "Yellow = Tables", (10, legend_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
         
         # Save debug overlay
-        debug_path = os.path.join(output_dir, f"page_{page_num+1:02d}_layout_debug.png")
+        debug_path = os.path.join(output_dir, f"page_{page_num+1:02d}_debug_overlay.png")
         cv2.imwrite(debug_path, overlay)
         logging.info(f"Saved debug overlay: {debug_path}")
     

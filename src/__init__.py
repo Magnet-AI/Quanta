@@ -34,20 +34,19 @@ __email__ = "team@pdf-layout-engine.org"
 __license__ = "MIT"
 
 # Import main functions for easy access
-from .runner import process_pdf, process_page, run_single_page
-from .pdf_io import load_pdf_page_data, render_page
-from .columns import detect_columns
-from .text_blocks import extract_text_blocks, group_lines_into_paragraphs
-from .figures import detect_figures
-from .tables import extract_tables
-from .captions import link_captions
-from .order import assemble_sections
-from .export import write_page_outputs
+from .core.pipeline_processor import process_pdf, process_page
+from .core.pdf_handler import load_pdf_page_data, render_page
+from .detection.column_detector import detect_columns
+from .detection.text_detector import extract_text_blocks, group_lines_into_paragraphs
+from .detection.figure_detector import detect_figures
+from .detection.table_detector import extract_tables
+from .processing.caption_processor import link_captions
+from .processing.content_organizer import assemble_sections
+from .core.output_manager import write_page_outputs
 
 __all__ = [
     'process_pdf',
     'process_page', 
-    'run_single_page',
     'load_pdf_page_data',
     'render_page',
     'detect_columns',
