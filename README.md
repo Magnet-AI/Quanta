@@ -24,15 +24,15 @@ A powerful and intelligent PDF layout analysis engine that automatically extract
 
 <div align="center">
   <img src="docs/images/debug_overlay_example.png" alt="Layout Analysis Debug Overlay" width="600"/>
-  <p><em>Debug overlay showing detected layout elements: columns (red), text blocks (green), figures (blue), and tables (yellow)</em></p>
+  <p><em>Debug overlay showing detected layout elements: columns (blue), text blocks (green), figures (red), and tables (yellow)</em></p>
 </div>
 
 ## ✨ Features
 
 - 🔍 **Multi-column Layout Detection** - Automatically identifies and processes complex multi-column layouts
-- 📊 **Intelligent Table Recognition** - Detects both ruled and borderless tables with high accuracy
-- 🖼️ **Figure Extraction** - Identifies and extracts figures, diagrams, and images
-- 📝 **Text Block Analysis** - Groups and processes text blocks with proper reading order
+- 📊 **Intelligent Table Recognition (Mistral OCR)** - Extracts tables and text with high accuracy via Mistral Document OCR
+- 🖼️ **Figure Extraction (Custom)** - Identifies and extracts figures, diagrams, and images using custom algorithms
+- 📝 **Text Block Analysis (Mistral + Heuristics)** - Uses Mistral OCR output and in-house grouping for reading order
 - 🏷️ **Caption Linking** - Automatically links captions to their corresponding figures and tables
 - 🎯 **High Accuracy** - Advanced algorithms ensure reliable content extraction
 - ⚡ **Fast Processing** - Optimized for speed and efficiency
@@ -55,9 +55,8 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Download YOLOv8 model (required for advanced detection)
-pip install ultralytics
-python -c "from ultralytics import YOLO; YOLO('yolov8l.pt')"
+# (Optional) Install extras you may need
+pip install ultralytics  # only if you use YOLO-based experiments
 ```
 
 ### Basic Usage
@@ -96,7 +95,7 @@ The engine follows a sophisticated multi-stage pipeline:
 2. **Column Detection** - Identifies multi-column layouts using whitespace analysis
 3. **Text Extraction** - Extracts and groups text blocks
 4. **Figure Detection** - Identifies figures using vector clustering and image analysis
-5. **Table Recognition** - Detects tables using both ruled and borderless methods
+5. **Table & Text Recognition (Mistral OCR)** - Leverages Mistral Document OCR to extract tables (CSV) and text blocks
 6. **Caption Linking** - Links captions to their corresponding figures/tables
 7. **Reading Order** - Determines proper reading sequence
 
@@ -107,10 +106,9 @@ The engine follows a sophisticated multi-stage pipeline:
 - Applies Gaussian smoothing to detect consistent vertical gaps
 - Implements adaptive thresholding for varying document layouts
 
-**Table Detection:**
-- **Ruled Tables**: Hough line transform for line detection
-- **Borderless Tables**: Cell density analysis and alignment detection
-- **Grid Extraction**: Line intersection analysis for cell boundaries
+**Table/Text Extraction:**
+- Uses Mistral Document OCR to obtain markdown-like structured output
+- Parses tables into CSV files and groups text into blocks
 
 **Figure Detection:**
 - Vector clustering using DBSCAN algorithm
@@ -199,10 +197,39 @@ python main.py --debug
 ```
 
 This generates overlay images showing:
-- 🔴 Red rectangles: Column boundaries
+- 🟦 Blue rectangles: Column boundaries
 - 🟢 Green rectangles: Text blocks
-- 🔵 Blue rectangles: Detected figures
-- 🟡 Yellow rectangles: Detected tables
+- 🟥 Red rectangles: Figures
+- 🟡 Yellow rectangles: Tables
+
+### Output Structure
+
+Results are organized per page under the PDF name inside `output/`.
+
+Example:
+
+```
+output/<pdf_name>/
+├── page_01/
+│   ├── figures/
+│   │   └── figure_01.png
+│   ├── tables/
+│   │   └── table_01.csv          # tables saved as CSV only (no table PNGs)
+│   ├── text/
+│   │   └── text_blocks.txt       # text blocks from Mistral OCR
+│   └── page_01.png               # full page image
+├── page_02/
+│   └── ...
+├── page_XX_debug_overlay.png     # debug overlay for each processed page (at root)
+└── summary.json                  # high-level summary (counts, filenames)
+```
+
+Key points:
+- Tables are saved as CSV files only (no table images).
+- Figures are cropped from the page using custom detection and saved as PNGs.
+- Text blocks (from Mistral OCR) are written to `text/text_blocks.txt` per page.
+- A full-page PNG is saved in each `page_XX/` directory.
+- Debug overlays (`page_XX_debug_overlay.png`) are saved at the PDF root inside `output/<pdf_name>/`.
 
 ## 📊 Performance
 

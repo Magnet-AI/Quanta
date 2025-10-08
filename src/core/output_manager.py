@@ -27,36 +27,56 @@ def write_page_outputs(page_num: int, page_data: Dict[str, Any],
     page_name = f"page_{page_num + 1:02d}"  # Zero-padded page numbers
     outputs = {}
     
-    # Create organized directory structure
-    figures_dir = os.path.join(output_dir, "figures")
-    tables_dir = os.path.join(output_dir, "tables")
-    pages_dir = os.path.join(output_dir, "pages")
+    # Create page-specific directory structure
+    page_dir = os.path.join(output_dir, page_name)
+    figures_dir = os.path.join(page_dir, "figures")
+    tables_dir = os.path.join(page_dir, "tables")
+    text_dir = os.path.join(page_dir, "text")
     
+    os.makedirs(page_dir, exist_ok=True)
     os.makedirs(figures_dir, exist_ok=True)
     os.makedirs(tables_dir, exist_ok=True)
-    os.makedirs(pages_dir, exist_ok=True)
+    os.makedirs(text_dir, exist_ok=True)
     
     # Write figure images to figures directory
     if 'figures' in page_data and page_data['figures']:
         for i, figure in enumerate(page_data['figures']):
-            fig_filename = f"{page_name}_figure_{i+1:02d}.png"
+            fig_filename = f"figure_{i+1:02d}.png"
             fig_path = os.path.join(figures_dir, fig_filename)
             crop_figure_image(page_data['img_page'], figure, fig_path)
             figure.image_path = fig_path
             outputs[f'figure_{i+1}'] = fig_path
     
-    # Write table images to tables directory
+    # Write table CSV files to tables directory (no PNG images)
     if 'tables' in page_data and page_data['tables']:
         for i, table in enumerate(page_data['tables']):
-            # Table image
-            table_filename = f"{page_name}_table_{i+1:02d}.png"
-            table_img_path = os.path.join(tables_dir, table_filename)
-            crop_table_image(page_data['img_page'], table, table_img_path)
-            table.image_path = table_img_path
-            outputs[f'table_{i+1}_img'] = table_img_path
+            # Table CSV only
+            table_csv_filename = f"table_{i+1:02d}.csv"
+            table_csv_path = os.path.join(tables_dir, table_csv_filename)
+            save_table_csv(table, table_csv_path)
+            outputs[f'table_{i+1}_csv'] = table_csv_path
     
-    # Write full page image to pages directory
-    page_img_path = os.path.join(pages_dir, f"{page_name}.png")
+    # Write Mistral text blocks to text directory
+    if 'mistral_text_blocks' in page_data and page_data['mistral_text_blocks']:
+        text_filename = "text_blocks.txt"
+        text_path = os.path.join(text_dir, text_filename)
+        
+        with open(text_path, 'w', encoding='utf-8') as f:
+            for i, text_block in enumerate(page_data['mistral_text_blocks']):
+                f.write(f"Text Block {i+1}:\n")
+                # Handle both dict and list formats
+                if isinstance(text_block, dict):
+                    f.write(f"{text_block.get('text', '')}\n")
+                    f.write(f"BBox: {text_block.get('bbox_px', [0,0,0,0])}\n")
+                else:
+                    f.write(f"{text_block}\n")
+                    f.write(f"BBox: [0,0,0,0]\n")
+                f.write("-" * 50 + "\n")
+        
+        outputs['text'] = text_path
+    
+    # Write full page image to page directory
+    page_img_path = os.path.join(page_dir, f"{page_name}.png")
     save_page_image(page_data['img_page'], page_img_path)
     outputs['page_image'] = page_img_path
     
@@ -369,9 +389,11 @@ def create_summary_report(all_pages_data: List[Dict[str, Any]], output_path: str
             "scanned_pages": 0
         },
         "directory_structure": {
-            "figures": "All extracted figure images",
-            "tables": "All extracted table images", 
-            "pages": "Full page images for reference"
+            "page_XX/": "Page-specific folder containing all content for that page",
+            "page_XX/figures/": "Figure images for this page",
+            "page_XX/tables/": "Table CSV files for this page", 
+            "page_XX/text/": "Text blocks for this page",
+            "page_XX/page_XX.png": "Full page image"
         },
         "pages": []
     }
@@ -385,9 +407,10 @@ def create_summary_report(all_pages_data: List[Dict[str, Any]], output_path: str
             "page_number": page_num,
             "figures_count": len(figures),
             "tables_count": len(tables),
-            "figures": [f"page_{page_num:02d}_figure_{i+1:02d}.png" for i in range(len(figures))],
-            "tables": [f"page_{page_num:02d}_table_{i+1:02d}.png" for i in range(len(tables))],
-            "page_image": f"page_{page_num:02d}.png"
+            "figures": [f"figure_{i+1:02d}.png" for i in range(len(figures))],
+            "tables": [f"table_{i+1:02d}.csv" for i in range(len(tables))],
+            "page_image": f"page_{page_num:02d}.png",
+            "page_directory": f"page_{page_num:02d}/"
         }
         
         summary["pages"].append(page_summary)

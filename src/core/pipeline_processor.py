@@ -9,19 +9,19 @@ from typing import List, Dict, Any
 from pathlib import Path
 
 # Import all modules
-from .pdf_io import load_pdf_page_data, get_page_info
-from .columns import detect_columns
-from .text_blocks import extract_text_blocks, group_lines_into_paragraphs, detect_headings
-from .figures import (
+from .pdf_handler import load_pdf_page_data, get_page_info
+from ..detection.column_detector import detect_columns
+from ..detection.text_detector import extract_text_blocks, group_lines_into_paragraphs, detect_headings
+from ..detection.figure_detector import (
     detect_figures,
     crop_figure_image,
     expand_figures_content_aware,
     expand_figures_away_from_text,
 )
-from .tables import extract_tables, save_table_csv
-from .captions import link_captions
-from .order import assemble_sections, determine_title
-from .export import write_page_outputs, create_summary_report, write_audit_log
+from ..detection.table_detector import extract_tables, save_table_csv
+from ..processing.caption_processor import link_captions
+from ..processing.content_organizer import assemble_sections, determine_title
+from .output_manager import write_page_outputs, create_summary_report, write_audit_log
 
 def filter_figures_away_from_tables(figures: List[Any], tables: List[Any]) -> List[Any]:
     """
@@ -117,19 +117,57 @@ def process_page(pdf_path: str, page_num: int, output_dir: str) -> Dict[str, Any
     text_blocks = detect_headings(text_blocks)
     
     # Filter text blocks to columns
-    from .text_blocks import filter_blocks_in_columns
+    from ..detection.text_detector import filter_blocks_in_columns
     text_blocks = filter_blocks_in_columns(text_blocks, columns)
     page_data['text_blocks'] = text_blocks
     
-    # Step D: Table Detection (before figures to avoid conflicts)
-    print("  ⏳ Detecting tables...")
-    tables = extract_tables(
-        page_data['img_page'], 
-        text_blocks, 
-        columns, 
-        page_data['page_size']['px'][0]
-    )
+    # Step D: Extract content using Mistral OCR for tables/text, custom for images
+    print("  ⏳ Extracting content with Mistral OCR...")
+    
+    try:
+        from ..extraction.mistral_service import MistralOCR
+        mistral_ocr = MistralOCR()
+        mistral_result = mistral_ocr.process_pdf_page(pdf_path, page_num + 1)
+        
+        mistral_tables = mistral_result.get("tables", [])
+        mistral_text_blocks = mistral_result.get("text_blocks", [])
+        print(f"    🔍 Mistral found {len(mistral_tables)} tables, {len(mistral_text_blocks)} text blocks")
+        
+        # Create tables from Mistral data (CSV only, no images needed)
+        tables = []
+        for i, mistral_table in enumerate(mistral_tables):
+            from ..detection.table_detector import Table
+            
+            # Create cells from Mistral data
+            cells = []
+            for r, row in enumerate(mistral_table.get("rows", [])):
+                for c, cell_text in enumerate(row):
+                    cells.append({
+                        "r": r,
+                        "c": c,
+                        "text": cell_text,
+                        "bbox_px": [0, 0, 0, 0]
+                    })
+            
+            # Use a default bbox since we don't need images
+            page_w, page_h = page_data['page_size']['px']
+            bbox_px = [page_w//4, page_h//4, 3*page_w//4, 3*page_h//4]
+            
+            table = Table(
+                bbox_px=bbox_px,
+                cells=cells,
+                detection_method="mistral_ocr"
+            )
+            tables.append(table)
+            print(f"    🔍 Created table {i+1} with {len(mistral_table.get('rows', []))} rows")
+        
+    except Exception as e:
+        print(f"    ⚠️ Mistral OCR failed: {e}")
+        tables = []
+        mistral_text_blocks = []
+    
     page_data['tables'] = tables
+    page_data['mistral_text_blocks'] = mistral_text_blocks
     
     # Step E: Figure Detection (after tables to avoid detecting figures in table areas)
     print("  ⏳ Detecting figures...")
@@ -137,7 +175,8 @@ def process_page(pdf_path: str, page_num: int, output_dir: str) -> Dict[str, Any
         page_data['drawings'], 
         page_data['xobjects'], 
         columns, 
-        page_data['page_size']
+        page_data['page_size'],
+        page_data['text_blocks']  # Pass text blocks for better boundary refinement
     )
     
     # Filter out figures that overlap with table areas

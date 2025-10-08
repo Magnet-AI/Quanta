@@ -43,7 +43,7 @@ def assemble_sections(text_blocks: List, figures: List, tables: List,
         return []
     
     # Remove caption blocks from text blocks to avoid double-counting
-    from .captions import remove_caption_blocks_from_text
+    from .caption_processor import remove_caption_blocks_from_text
     text_blocks = remove_caption_blocks_from_text(text_blocks, captions)
     
     # Sort blocks by reading order
