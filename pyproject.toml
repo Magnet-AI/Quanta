@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quanta-pdf"
-version = "1.0.1"
+version = "1.0.2"
 description = "Advanced PDF layout analysis engine for extracting figures, tables, and structured content"
 readme = "README.md"
 license = {text = "MIT"}
