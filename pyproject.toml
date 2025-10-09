@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "quanta"
-version = "1.0.0"
+name = "quanta-pdf"
+version = "1.0.1"
 description = "Advanced PDF layout analysis engine for extracting figures, tables, and structured content"
 readme = "README.md"
 license = {text = "MIT"}
@@ -82,11 +82,11 @@ Repository = "https://github.com/Magnet-AI/Quanta.git"
 Changelog = "https://github.com/Magnet-AI/Quanta/blob/main/CHANGELOG.md"
 
 [project.scripts]
-pdf-layout-engine = "src.runner:main"
+quanta = "quanta.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["src*"]
+where = ["src"]
+include = ["*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md", "*.yml", "*.yaml"]
