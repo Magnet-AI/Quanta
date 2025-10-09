@@ -41,48 +41,41 @@ A powerful and intelligent PDF layout analysis engine that automatically extract
 
 ## 🚀 Quick Start
 
-### Installation
+### Install via PyPI
 
 ```bash
-# Clone the repository
-git clone https://github.com/Magnet-AI/Quanta.git
-cd Quanta
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# (Optional) Install extras you may need
-pip install ultralytics  # only if you use YOLO-based experiments
+pip install quanta-pdf
 ```
 
-### Basic Usage
+### Basic Usage (Python)
 
 ```python
-from pdf_layout_engine import process_pdf
+from quanta import extract_document
 
-# Process a single PDF
-result = process_pdf("document.pdf", "output/")
-
-# Access results
-print(f"Found {len(result['figures'])} figures and {len(result['tables'])} tables")
+result = extract_document("document.pdf", "output/")
+print(f"Pages: {len(result['pages'])}")
 ```
 
 ### Command Line Interface
 
 ```bash
-# Process all PDFs in a directory
-python main.py
-
-# Debug mode - visualize layout analysis
-python main.py --debug
-
-# Process specific mode
-python main.py --mode extract
+quanta --input document.pdf --output output/
 ```
+
+If you want Mistral OCR tables/text, set `MISTRAL_API_KEY` first (see below).
+
+### Environment configuration (.env)
+
+To enable Mistral OCR for tables and text blocks, set your API key. You can either export it or place it in a `.env` file at your project root.
+
+```bash
+# Option A: environment variable
+export MISTRAL_API_KEY="your-mistral-api-key"
+
+# Option B: .env file (same directory where you run the code)
+echo "MISTRAL_API_KEY=your-mistral-api-key" > .env
+```
+The library loads `.env` automatically; the CLI also picks it up when run from that directory.
 
 ## 📖 Documentation
 
@@ -115,32 +108,24 @@ The engine follows a sophisticated multi-stage pipeline:
 - Aspect ratio analysis to distinguish figures from tables
 - Image XObject extraction for embedded graphics
 
-### API Reference
+### API Reference (package)
 
-#### `process_pdf(pdf_path: str, output_dir: str) -> Dict[str, Any]`
+#### `extract_document(input_pdf: str | Path, output_dir: str | Path) -> dict`
 
 Process a PDF document and extract structured content.
 
 **Parameters:**
-- `pdf_path` (str): Path to the input PDF file
-- `output_dir` (str): Directory to save extracted content
+- `input_pdf`: Path to the input PDF file
+- `output_dir`: Directory to save extracted content
 
 **Returns:**
 - `Dict[str, Any]`: Processing results containing figures, tables, and metadata
 
 **Example:**
 ```python
-result = process_pdf("research_paper.pdf", "output/")
-
-# Access extracted figures
-for figure in result['figures']:
-    print(f"Figure: {figure['caption']}")
-    print(f"Bounding box: {figure['bbox']}")
-
-# Access extracted tables
-for table in result['tables']:
-    print(f"Table: {table['caption']}")
-    print(f"Cells: {len(table['cells'])}")
+from quanta import extract_document
+result = extract_document("research_paper.pdf", "output/")
+print(result["summary_path"])  # JSON summary path
 ```
 
 ## 🎯 Use Cases

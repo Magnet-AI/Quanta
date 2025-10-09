@@ -6,15 +6,10 @@ This example demonstrates how to use the PDF Layout Analysis Engine
 to extract figures, tables, and text from PDF documents.
 """
 
-import sys
 import os
 from pathlib import Path
 
-# Add the src directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from runner import process_pdf
-from pdf_io import get_page_info
+from quanta import extract_document
 
 def basic_example():
     """Basic example of processing a single PDF"""
@@ -35,22 +30,10 @@ def basic_example():
     print(f"📤 Output directory: {output_dir}")
     print()
     
-    # Get PDF information
-    try:
-        pdf_info = get_page_info(pdf_path)
-        print(f"📊 PDF Information:")
-        print(f"   Pages: {pdf_info['num_pages']}")
-        print(f"   Title: {pdf_info['metadata'].get('title', 'Unknown')}")
-        print(f"   Author: {pdf_info['metadata'].get('author', 'Unknown')}")
-        print()
-    except Exception as e:
-        print(f"⚠️  Warning: Could not get PDF info: {e}")
-        print()
-    
     # Process the PDF
     try:
         print("🚀 Starting processing...")
-        result = process_pdf(pdf_path, output_dir)
+        result = extract_document(pdf_path, output_dir)
         
         # Display results
         print("\n✅ Processing Complete!")
