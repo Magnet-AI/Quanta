@@ -1,0 +1,75 @@
+Quanta PDF Extraction – Install and Usage
+
+A lightweight SDK and CLI to extract figures (PNGs), tables (CSVs), text blocks, and per-page images from PDFs. Optional Mistral OCR integration improves tables/text.
+
+Install
+- From PyPI (recommended):
+  pip install quanta-pdf
+
+- From Git (pin a tag/commit):
+  pip install "git+https://github.com/Magnet-AI/Quanta.git@v1.0.2#egg=quanta-pdf"
+
+- Optional OCR dependency:
+  pip install mistralai python-dotenv
+
+Configure OCR (optional)
+Set your Mistral API key so tables and text blocks are enriched via Mistral OCR.
+
+- Env var:
+  export MISTRAL_API_KEY="your-mistral-api-key"
+
+- Or .env file (in the working directory where you run the CLI/code):
+  echo "MISTRAL_API_KEY=your-mistral-api-key" > .env
+
+CLI usage
+- Basic:
+  quanta --input /abs/path/document.pdf --output /abs/path/output_dir
+
+- With OCR:
+  export MISTRAL_API_KEY="your-mistral-api-key"
+  quanta --input /abs/path/document.pdf --output /abs/path/output_dir
+
+Outputs per page:
+- page_XX/page_XX.png
+- page_XX/figures/figure_YY.png
+- page_XX/tables/table_ZZ.csv
+- page_XX/text/text_blocks.txt
+- summary.json at the output root
+
+Python usage (simple dict API)
+from quanta import extract_document
+result = extract_document("/abs/path/document.pdf", "/abs/path/output_dir")
+print("Summary:", result["summary_path"])
+print("Pages:", len(result["pages"]))
+
+Python usage (typed convenience API)
+from pathlib import Path
+from quanta import extract, ExtractConfig
+
+cfg = ExtractConfig(
+    input_pdf=Path("/abs/path/document.pdf"),
+    output_dir=Path("/abs/path/output_dir"),
+    debug=False,
+)
+res = extract(cfg)
+
+print(res.summary_path)
+for page in res.pages:
+    print(page.page_number, page.page_image_path)
+    print(page.figure_paths)     # list[Path] of figure PNGs
+    print(page.table_csv_paths)  # list[Path] of table CSVs
+    print(page.text_path)        # text_blocks.txt
+
+Requirements and notes
+- Python 3.8+
+- Dependencies are installed automatically on pip install (OpenCV, PyMuPDF, NumPy, pandas, matplotlib, scikit-learn).
+- For OCR, install mistralai and set MISTRAL_API_KEY.
+- The package exposes a stable SDK at `quanta` and a `quanta` CLI.
+
+Troubleshooting
+- ImportError on installed package: upgrade to latest
+  pip install --upgrade quanta-pdf
+
+- OCR not applied: ensure `mistralai` is installed and `MISTRAL_API_KEY` is set or present in `.env` where you run the command.
+
+- Large outputs: choose an output_dir on a fast disk; clean up after runs if needed.

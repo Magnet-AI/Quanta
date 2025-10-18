@@ -262,7 +262,7 @@ def create_mistral_table(table_data: Dict[str, Any]) -> 'Table':
     Returns:
         Table object
     """
-    from .tables import Table
+    from ..detection.table_detector import Table
     
     # Calculate bounding box (placeholder for now)
     bbox_px = table_data.get("bbox_px", [0, 0, 100, 100])

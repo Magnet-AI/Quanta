@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Union
 
 # Import from existing internal modules installed as top-level packages
 # These modules already exist under src/core, src/detection, etc.
-from core.pipeline_processor import process_pdf  # type: ignore
+from ..core.pipeline_processor import process_pdf  # type: ignore
 from .types import ExtractConfig, ExtractResult, ExtractPageArtifacts
 
 
