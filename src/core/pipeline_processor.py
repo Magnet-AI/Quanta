@@ -10,17 +10,17 @@ from pathlib import Path
 
 # Import all modules
 from .pdf_handler import load_pdf_page_data, get_page_info
-from detection.column_detector import detect_columns
-from detection.text_detector import extract_text_blocks, group_lines_into_paragraphs, detect_headings
-from detection.figure_detector import (
+from ..detection.column_detector import detect_columns
+from ..detection.text_detector import extract_text_blocks, group_lines_into_paragraphs, detect_headings
+from ..detection.figure_detector import (
     detect_figures,
     crop_figure_image,
     expand_figures_content_aware,
     expand_figures_away_from_text,
 )
-from detection.table_detector import extract_tables, save_table_csv
-from processing.caption_processor import link_captions
-from processing.content_organizer import assemble_sections, determine_title
+from ..detection.table_detector import extract_tables, save_table_csv
+from ..processing.caption_processor import link_captions
+from ..processing.content_organizer import assemble_sections, determine_title
 from .output_manager import write_page_outputs, create_summary_report, write_audit_log
 
 def filter_figures_away_from_tables(figures: List[Any], tables: List[Any]) -> List[Any]:
@@ -117,7 +117,7 @@ def process_page(pdf_path: str, page_num: int, output_dir: str) -> Dict[str, Any
     text_blocks = detect_headings(text_blocks)
     
     # Filter text blocks to columns
-    from detection.text_detector import filter_blocks_in_columns
+    from ..detection.text_detector import filter_blocks_in_columns
     text_blocks = filter_blocks_in_columns(text_blocks, columns)
     page_data['text_blocks'] = text_blocks
     
@@ -125,7 +125,7 @@ def process_page(pdf_path: str, page_num: int, output_dir: str) -> Dict[str, Any
     print("  ⏳ Extracting content with Mistral OCR...")
     
     try:
-        from extraction.mistral_service import MistralOCR
+        from ..extraction.mistral_service import MistralOCR
         mistral_ocr = MistralOCR()
         mistral_result = mistral_ocr.process_pdf_page(pdf_path, page_num + 1)
         
@@ -136,7 +136,7 @@ def process_page(pdf_path: str, page_num: int, output_dir: str) -> Dict[str, Any
         # Create tables from Mistral data (CSV only, no images needed)
         tables = []
         for i, mistral_table in enumerate(mistral_tables):
-            from detection.table_detector import Table
+            from ..detection.table_detector import Table
             
             # Create cells from Mistral data
             cells = []

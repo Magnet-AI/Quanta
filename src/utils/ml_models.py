@@ -4,7 +4,7 @@ Clean ML-based table detection without hardcoded patterns.
 
 import numpy as np
 from typing import List, Dict, Optional
-from .text_blocks import TextBlock
+from ..detection.text_detector import TextBlock
 
 # Simple ML-based constants
 MIN_BLOCKS_PER_ROW = 2

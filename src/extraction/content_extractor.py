@@ -7,10 +7,10 @@ Hybrid processor that combines:
 import logging
 from typing import List, Dict, Any, Tuple
 import numpy as np
-from .mistral_ocr import MistralOCR, create_mistral_table
-from .figures import detect_figures
-from .text_blocks import TextBlock
-from .tables import Table
+from .mistral_service import MistralOCR, create_mistral_table
+from ..detection.figure_detector import detect_figures
+from ..detection.text_detector import TextBlock
+from ..detection.table_detector import Table
 
 class HybridProcessor:
     """Hybrid processor combining Mistral OCR and custom algorithms."""
@@ -136,7 +136,7 @@ def extract_tables_hybrid(img: np.ndarray, text_blocks: List, columns: List[Tupl
     if not pdf_path:
         logging.warning("No PDF path provided, falling back to custom table detection")
         # Fallback to custom detection if no PDF path
-        from .tables_ml import detect_tables_ml
+        from ..utils.ml_models import detect_tables_ml
         return detect_tables_ml(text_blocks, page_width, 1000)
     
     try:
@@ -158,5 +158,5 @@ def extract_tables_hybrid(img: np.ndarray, text_blocks: List, columns: List[Tupl
     except Exception as e:
         logging.error(f"Error with Mistral OCR, falling back to custom detection: {e}")
         # Fallback to custom detection
-        from .tables_ml import detect_tables_ml
+        from ..utils.ml_models import detect_tables_ml
         return detect_tables_ml(text_blocks, page_width, 1000)
