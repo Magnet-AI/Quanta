@@ -135,9 +135,12 @@ def load_pdf_page_data(pdf_path: str, page_num: int) -> Dict[str, Any]:
         total_image_area = 0
         for img in images:
             # Get image rectangle in points
-            img_rect = page.get_image_rects(img[0])[0]
-            total_image_area += img_rect.width * img_rect.height
-        painted_image_area = total_image_area / (width_pt * height_pt)
+            img_rects = page.get_image_rects(img[0])
+            if img_rects and len(img_rects) > 0:
+                img_rect = img_rects[0]
+                total_image_area += img_rect.width * img_rect.height
+        if width_pt > 0 and height_pt > 0:
+            painted_image_area = total_image_area / (width_pt * height_pt)
     
     is_scanned = (len(words) < 50) and (painted_image_area > 0.8)
     
@@ -146,7 +149,7 @@ def load_pdf_page_data(pdf_path: str, page_num: int) -> Dict[str, Any]:
     for img_index, img in enumerate(images):
         try:
             img_rects = page.get_image_rects(img[0])
-            if img_rects:
+            if img_rects and len(img_rects) > 0:
                 rect = img_rects[0]
                 xobjects.append({
                     'index': img_index,
